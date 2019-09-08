@@ -11,5 +11,5 @@ cli = click.Command(
         click.Argument(["inject"], type=lambda x: pathlib.Path(x).resolve()),
         click.Argument(["project_url"]),
     ],
-    callback=app.run,
+    callback=lambda **kw: print(app.run(**kw)),
 )
