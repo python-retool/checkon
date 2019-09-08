@@ -1,4 +1,3 @@
-
 from click.testing import CliRunner
 
 from checkon.cli import main
