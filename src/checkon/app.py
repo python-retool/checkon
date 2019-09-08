@@ -68,12 +68,11 @@ def install_hooks(module: str):
             path.write_text(original)
 
 
-def run(project_url, inject: str):
+def run_one(project_url, inject: str):
     project_tempdir = pathlib.Path(tempfile.TemporaryDirectory().name)
     result_path = project_tempdir / "result.json"
     results_dir = pathlib.Path(tempfile.TemporaryDirectory().name)
 
-    print(1)
     subprocess.run(["git", "clone", str(project_url), str(project_tempdir)], check=True)
 
     # Create the envs and install deps.
@@ -91,7 +90,7 @@ def run(project_url, inject: str):
         "--run-command",
         "python -m pip install " + shlex.quote(str(inject)),
     ]
-    print(" ".join(args))
+
     subprocess.run(args, cwd=str(project_tempdir))
 
     # Get environment names.
@@ -127,3 +126,8 @@ def run(project_url, inject: str):
             },
         )
     return str(results_dir)
+
+
+def run_many(project_urls, inject):
+    for url in project_urls:
+        run_one(project_url=url, inject=inject)
