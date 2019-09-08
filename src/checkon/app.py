@@ -1,5 +1,7 @@
 import contextlib
+import os
 import pathlib
+import shlex
 import site
 import subprocess
 import sys
@@ -67,11 +69,61 @@ def install_hooks(module: str):
 
 
 def run(project_url, inject: str):
-    dir = pathlib.Path(tempfile.TemporaryDirectory().name)
+    project_tempdir = pathlib.Path(tempfile.TemporaryDirectory().name)
+    result_path = project_tempdir / "result.json"
+    results_dir = pathlib.Path(tempfile.TemporaryDirectory().name)
 
-    subprocess.run(["git", "clone", str(project_url), str(dir)], check=True)
-    dir = "/tmp/tmp0x2e4339"
-    with install_hooks(inject):
-        proc = subprocess.run([sys.executable, "-m", "tox"], cwd=str(dir))
+    print(1)
+    subprocess.run(["git", "clone", str(project_url), str(project_tempdir)], check=True)
 
-    return proc.returncode
+    # Create the envs and install deps.
+    subprocess.run(
+        [sys.executable, "-m", "tox", "--notest", "-c", str(project_tempdir)],
+        cwd=str(project_tempdir),
+        check=True,
+    )
+
+    # Install the injection into each venv
+    args = [
+        sys.executable,
+        "-m",
+        "tox",
+        "--run-command",
+        "python -m pip install " + shlex.quote(str(inject)),
+    ]
+    print(" ".join(args))
+    subprocess.run(args, cwd=str(project_tempdir))
+
+    # Get environment names.
+    envnames = (
+        subprocess.run(
+            [sys.executable, "-m", "tox", "-l"],
+            cwd=str(project_tempdir),
+            capture_output=True,
+        )
+        .stdout.decode()
+        .splitlines()
+    )
+
+    for envname in envnames:
+        # Run the environment.
+        output_file = results_dir / f"{envname}.xml"
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "tox",
+                "--result-json",
+                str(result_path),
+                "-e",
+                envname,
+            ],
+            cwd=str(project_tempdir),
+            check=False,
+            env={
+                "TOX_TESTENV_PASSENV": "PYTEST_ADDOPTS",
+                "PYTEST_ADDOPTS": f"--tb=long --junitxml={output_file}",
+                **os.environ,
+            },
+        )
+    return str(results_dir)

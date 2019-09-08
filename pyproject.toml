@@ -1,3 +1,4 @@
+
 [tool.poetry]
 name = "checkon"
 version = "0.1.0" # PACKAGE_VERSION  (This comment helps bumpversion find the right line.)
@@ -11,6 +12,7 @@ click = "7.0"
 attrs = "19.1.0"
 hyperlink = "^19.0"
 pyrsistent = "^0.15.4"
+tox-run-command = "^0.4.0"
 
 
 [tool.poetry.dev-dependencies]
