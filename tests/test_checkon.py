@@ -1,11 +1,6 @@
-from click.testing import CliRunner
-
-from checkon.cli import main
+import sys
 
 
-def test_main():
-    runner = CliRunner()
-    result = runner.invoke(main, [])
-
-    assert result.output == "()\n"
-    assert result.exit_code == 0
+def test_foo():
+    print(sys.path)
+    1 / 0
