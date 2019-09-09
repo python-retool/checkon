@@ -34,7 +34,7 @@ class FailureField(marshmallow.fields.Field):
 
 
 @dataclasses.dataclass(frozen=True)
-class TestCase:
+class TestCaseRun:
     name: str
     classname: str
     file: str
@@ -47,7 +47,7 @@ class TestCase:
 
 @attr.dataclass(frozen=True)
 @dataclasses.dataclass(frozen=True)
-class TestSuite:
+class TestSuiteRun:
     errors: int
     failures: int
     skipped: int
@@ -56,7 +56,9 @@ class TestSuite:
     timestamp: datetime.datetime  # TODO pendulum
     hostname: str
     name: str
-    test_cases: t.List[TestCase] = dataclasses.field(metadata={"data_key": "testcase"})
+    test_cases: t.List[TestCaseRun] = dataclasses.field(
+        metadata={"data_key": "testcase"}
+    )
 
     @classmethod
     def from_bytes(cls, data):
@@ -78,16 +80,16 @@ class TestSuite:
 
 
 @attr.dataclass(frozen=True)
-class SuiteRun:
+class ToxSuiteRun:
     """A toxenv result."""
 
-    suite: TestSuite
+    suite: TestSuiteRun
     tox_run: checkon.tox.ToxRun
 
     @classmethod
     def from_dir(cls, toxenv_dir):
         [path] = toxenv_dir.glob("test_*.xml")
-        [suite] = TestSuite.from_path(path)
+        [suite] = TestSuiteRun.from_path(path)
         [tox_data_path] = toxenv_dir.glob("tox_*.json")
         tox_run = checkon.tox.ToxRun.from_path(tox_data_path)
         return cls(suite, tox_run=tox_run)
@@ -96,7 +98,7 @@ class SuiteRun:
 @attr.dataclass(frozen=True)
 class DependentResult:
     url: str
-    suite_runs: t.List[SuiteRun]
+    suite_runs: t.List[ToxSuiteRun]
 
     @classmethod
     def from_dir(cls, output_dir, url):
@@ -104,7 +106,7 @@ class DependentResult:
         for dir in pathlib.Path(output_dir).glob("*"):
             if not dir.is_dir():
                 continue
-            runs.append(SuiteRun.from_dir(dir))
+            runs.append(ToxSuiteRun.from_dir(dir))
 
         return cls(url=url, suite_runs=runs)
 
