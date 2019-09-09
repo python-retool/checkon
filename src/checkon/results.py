@@ -5,11 +5,27 @@ import typing as t
 
 import attr
 import dataclasses
+import marshmallow
 import marshmallow_dataclass
 import pyrsistent
 import xmltodict
 
 import checkon.tox
+
+
+@dataclasses.dataclass(frozen=True)
+class Failure:
+    message: str
+    lines: t.List[str]
+
+
+class FailureField(marshmallow.fields.Field):
+    def _deserialize(self, value, attr, data, **kw):
+        if isinstance(value, list):
+            [value] = value
+
+            return Failure(**value)
+        return None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -19,6 +35,9 @@ class TestCase:
     file: str
     line: int
     time: str  # TODO pendulum
+    failure: t.Optional[Failure] = dataclasses.field(
+        metadata={"marshmallow_field": FailureField()}
+    )
 
 
 @attr.dataclass(frozen=True)
@@ -38,8 +57,13 @@ class TestSuite:
     def from_bytes(cls, data):
         schema = marshmallow_dataclass.class_schema(cls)(many=True)
         parsed = xmltodict.parse(
-            data, attr_prefix="", dict_constructor=dict, force_list=True
+            data,
+            attr_prefix="",
+            dict_constructor=dict,
+            force_list=True,
+            cdata_key="lines",
         )
+
         [suite] = parsed["testsuites"]
         return schema.load(suite["testsuite"])
 
