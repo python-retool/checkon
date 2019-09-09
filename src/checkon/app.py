@@ -17,6 +17,8 @@ import pyrsistent
 import requests
 import requirements
 
+from . import results
+
 
 @attr.dataclass(frozen=True)
 class Project:
@@ -86,28 +88,36 @@ def resolve_inject(inject):
 def run_one(project_url, inject: str):
     print(project_url)
 
-    project_tempdir = pathlib.Path(tempfile.TemporaryDirectory().name)
-
     results_dir = pathlib.Path(tempfile.TemporaryDirectory().name)
-    results_dir.mkdir(exist_ok=True)
+    results_dir.mkdir(exist_ok=True, parents=True)
 
-    subprocess.run(["git", "clone", str(project_url), str(project_tempdir)], check=True)
-
-    # Create the envs and install deps.
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "tox",
-            "--notest",
-            "-c",
-            str(project_tempdir),
-            "--result-json",
-            str(results_dir / "tox_install.json"),
-        ],
-        cwd=str(project_tempdir),
-        check=False,
+    clone_tempdir = pathlib.Path(tempfile.TemporaryDirectory().name)
+    subprocess.run(["git", "clone", str(project_url), str(clone_tempdir)], check=True)
+    rev_hash = (
+        subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=clone_tempdir)
+        .decode()
+        .strip()
     )
+    project_tempdir = pathlib.Path("/tmp/checkon/" + str(rev_hash))
+
+    if not project_tempdir.exists():
+        clone_tempdir.rename(project_tempdir)
+
+        # Create the envs and install deps.
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "tox",
+                "--notest",
+                "-c",
+                str(project_tempdir),
+                "--result-json",
+                str(results_dir / "tox_install.json"),
+            ],
+            cwd=str(project_tempdir),
+            check=False,
+        )
 
     # Install the injection into each venv
     args = [
@@ -160,7 +170,7 @@ def run_one(project_url, inject: str):
                 **os.environ,
             },
         )
-    return str(results_dir)
+    return results_dir
 
 
 def run_many(project_urls, inject):
@@ -169,7 +179,12 @@ def run_many(project_urls, inject):
     for url in project_urls:
         output_dir = run_one(project_url=url, inject=inject)
         url_to_output_dir[url] = output_dir
-    return url_to_output_dir
+
+    out = []
+    for url, output_dir in url_to_output_dir.items():
+        out.append(results.DependentResult.from_dir(output_dir=output_dir, url=url))
+
+    return out
 
 
 def get_dependents(pypi_name, api_key, limit):
