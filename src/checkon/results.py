@@ -36,7 +36,7 @@ class TestCase:
     line: int
     time: str  # TODO pendulum
     failure: t.Optional[Failure] = dataclasses.field(
-        metadata={"marshmallow_field": FailureField()}
+        metadata={"marshmallow_field": FailureField()}, default=None
     )
 
 
