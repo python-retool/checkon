@@ -74,6 +74,18 @@ def install_hooks(module: str):
             path.write_text(original)
 
 
+def get_dependents(pypi_name, api_key, limit):
+
+    url = f"https://libraries.io/api/pypi/{pypi_name}/dependents?api_key={api_key}&per_page={limit}"
+    response = requests.get(url)
+
+    return [
+        project["repository_url"]
+        for project in response.json()
+        if project["repository_url"]
+    ]
+
+
 def resolve_inject(inject):
     """Resolve local requirements path."""
     try:
@@ -173,7 +185,7 @@ def run_one(project_url, inject: str):
     return results_dir
 
 
-def run_many(project_urls, inject):
+def run_many(project_urls: t.List[str], inject: str) -> t.List[results.DependentResult]:
     inject = resolve_inject(inject)
     url_to_output_dir = {}
     for url in project_urls:
@@ -187,13 +199,7 @@ def run_many(project_urls, inject):
     return out
 
 
-def get_dependents(pypi_name, api_key, limit):
-
-    url = f"https://libraries.io/api/pypi/{pypi_name}/dependents?api_key={api_key}&per_page={limit}"
-    response = requests.get(url)
-
-    return [
-        project["repository_url"]
-        for project in response.json()
-        if project["repository_url"]
-    ]
+def compare(project_urls: t.List[str], inject_new: str, inject_base: str):
+    base_results = run_many(project_urls, inject_base)
+    new_results = run_many(project_urls, inject_new)
+    print(base_results)
