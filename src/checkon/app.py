@@ -92,7 +92,7 @@ def resolve_inject(inject):
         req = list(requirements.parse(inject))[0]
     except pkg_resources.RequirementParseError:
         req = list(requirements.parse("-e" + str(inject)))[0]
-    if req.path:
+    if req.path and not req.path.startswith("git+"):
         return str(pathlib.Path(req.path).resolve())
     return inject
 
@@ -137,7 +137,7 @@ def run_one(project_url, inject: str):
         "-m",
         "tox",
         "--run-command",
-        "python -m pip install " + shlex.quote(str(inject)),
+        "python -m pip install --force " + shlex.quote(str(inject)),
     ]
 
     subprocess.run(args, cwd=str(project_tempdir))
@@ -199,7 +199,32 @@ def run_many(project_urls: t.List[str], inject: str) -> t.List[results.Dependent
     return out
 
 
+def extract_failed_tests(
+    dependent_result: results.DependentResult
+) -> t.Set[results.FailedTest]:
+    out = set()
+    for suite_run in dependent_result.suite_runs:
+        suite = suite_run.suite
+
+        for test in suite.test_cases:
+            if test.failure is not None:
+                failed = results.FailedTest.from_test_case(test)
+
+                out.add(failed)
+
+    return frozenset(out)
+
+
 def compare(project_urls: t.List[str], inject_new: str, inject_base: str):
-    base_results = run_many(project_urls, inject_base)
-    new_results = run_many(project_urls, inject_new)
-    print(base_results)
+    [base_result] = run_many(project_urls, inject_base)
+    [new_result] = run_many(project_urls, inject_new)
+
+    base_failures = extract_failed_tests(base_result)
+    new_failures = extract_failed_tests(new_result)
+
+    return results.Comparison(
+        base_requirement=inject_base,
+        new_requirement=inject_new,
+        base_failures=base_failures,
+        new_failures=new_failures,
+    )

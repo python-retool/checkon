@@ -2,6 +2,8 @@ import pathlib
 
 import click
 
+import checkon.results
+
 from . import app
 
 
@@ -11,9 +13,11 @@ def run_cli(urls_lists, **kw):
     print(app.run_many(project_urls=urls, **kw))
 
 
-class ListFromFile(click.File):
-    def convert(self, value, param, ctx):
-        return [line.strip() for line in super().convert(value, param, ctx).readlines()]
+def compare_cli(urls_lists, **kw):
+    urls = [url for urls in urls_lists for url in urls]
+    print(
+        checkon.results.format_comparison(checkon.app.compare(project_urls=urls, **kw))
+    )
 
 
 def read_from_file(file):
@@ -62,6 +66,15 @@ test = click.Group(
 )
 
 
+compare = click.Group(
+    "compare",
+    commands={c.name: c for c in dependents},
+    params=[click.Option(["--inject-new"]), click.Option(["--inject-base"])],
+    result_callback=compare_cli,
+    chain=True,
+)
+
+
 def list_cli(dicts):
     return dicts
 
@@ -69,4 +82,6 @@ def list_cli(dicts):
 list_commands = click.Group(
     "list", commands={c.name: c for c in dependents}, result_callback=list_cli
 )
-cli = click.Group("run", commands={"test": test, "list": list_commands})
+cli = click.Group(
+    "run", commands={"test": test, "list": list_commands, "compare": compare}
+)
