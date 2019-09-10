@@ -48,6 +48,11 @@ class TestEnv:
     installed_packages: t.List[str] = attr.ib(converter=pyrsistent.freeze)
     python: Python
     setup: t.List[Setup]
+    name: t.Optional[str]
+
+    @classmethod
+    def from_dict(cls, data, name):
+        cls(**data, name=name)
 
 
 @attr.s(auto_attribs=True, frozen=True)
@@ -56,7 +61,9 @@ class ToxRun:
     commands: t.List[t.Any] = attr.ib(converter=pyrsistent.freeze)
     platform: str
     host: str
-    testenvs: t.Dict[str, TestEnv]
+    testenvs: t.Dict[str, TestEnv] = attr.ib(
+        converter=lambda d: {k: attr.evolve(v, name=k) for k, v in d.items()}
+    )
     reportversion: str
 
     @classmethod
