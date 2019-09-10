@@ -126,18 +126,13 @@ class ToxenvRun:
 @relation
 class ToxRun:
     toxenv_runs = sa.orm.relationship("ToxenvRun", uselist=True)
+    provider = sa.Column(sa.String)
+    application = sa.Column(sa.String)
 
 
 @relation
 class Provider:
     requirement = sa.Column(sa.String)
-
-
-@relation
-class ProviderApplicationToxenvRun:
-    provider = sa.orm.relationship("Provider", uselist=False)
-    application = sa.orm.relationship("Application", uselist=False)
-    toxenv_run = sa.orm.relationship("ToxenvRun", uselist=False)
 
 
 def singledispatch_method(func):
@@ -228,10 +223,22 @@ class Database:
             return self._cache[key]
         return TestCase(**args)
 
+    @transform.register
+    def _(self, run: checkon.results.AppSuiteRun):
+        return ToxRun(
+            application=run.dependent_result.url,
+            provider=run.injected,
+            toxenv_runs=[
+                self.transform(depresult)
+                for depresult in run.dependent_result.suite_runs
+            ],
+        )
+
 
 def insert_result(db: Database, result: checkon.results.DependentResult):
-    [out] = db.transform(result)
-
+    out = db.transform(result)
+    print(out)
+    # import pudb; pudb.set_trace()
     db.session.add(out)
     db.session.commit()
 

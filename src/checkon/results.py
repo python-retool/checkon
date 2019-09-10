@@ -115,6 +115,12 @@ class DependentResult:
 
 
 @attr.dataclass(frozen=True)
+class AppSuiteRun:
+    injected: str
+    dependent_result: DependentResult
+
+
+@attr.dataclass(frozen=True)
 class FailedTest:
     name: str
     classname: str
