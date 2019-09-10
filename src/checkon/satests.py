@@ -102,7 +102,7 @@ class TestSuiteRun:
     duration = sa.Column(sa.String)
 
     # XXX Ew.
-    testenv = sa.Column(sa.String)
+    envname = sa.Column(sa.String)
 
 
 @relation
@@ -119,8 +119,9 @@ class Toxenv:
 @relation
 class ToxenvRun:
     toxenv = sa.orm.relationship("Toxenv")
-    test_suite_run = sa.orm.relationship("TestSuiteRun", uselist=False)
     start_time = sa.Column(sa.DateTime)
+    envname = sa.Column(sa.String)
+    test_suite_run = sa.orm.relationship("TestSuiteRun", uselist=False)
 
 
 @relation
@@ -168,35 +169,35 @@ class Database:
         raise NotImplementedError(result, type(result).__name__, vars(result))
 
     @transform.register
-    def _(self, result: checkon.results.DependentResult):
+    def _y(self, result: checkon.results.DependentResult):
         return [self.transform(tox_suite_run) for tox_suite_run in result.suite_runs]
 
     @transform.register
-    def _(self, run: checkon.results.ToxSuiteRun):
+    def _x(self, run: checkon.results.ToxTestSuiteRun):
 
-        return ToxenvRun(test_suite_run=self.transform(run.suite))
+        return ToxenvRun(test_suite_run=self.transform(run.suite), envname=run.envname)
 
     @transform.register
-    def _(self, run: checkon.results.TestSuiteRun):
+    def _z(self, run: checkon.results.TestSuiteRun):
         suite = TestSuite(
             test_cases=[
-                self.transform(case, cls=TestCase, testenv=run.testenv)
+                self.transform(case, cls=TestCase, testenv=run.envname)
                 for case in run.test_cases
             ]
         )
         test_case_runs = [
-            self.transform(case, cls=TestCaseRun, testenv=run.testenv)
+            self.transform(case, cls=TestCaseRun, testenv=run.envname)
             for case in run.test_cases
         ]
         return TestSuiteRun(
             test_case_runs=test_case_runs,
             duration=run.time,
             start_time=run.timestamp,
-            testenv=run.testenv,
+            envname=run.envname,
         )
 
     @transform.register
-    def _(self, run: checkon.results.TestCaseRun, cls: t.Type, testenv):
+    def _q(self, run: checkon.results.TestCaseRun, cls: t.Type, testenv):
 
         if cls == TestCaseRun:
 
@@ -225,6 +226,7 @@ class Database:
 
     @transform.register
     def _(self, run: checkon.results.AppSuiteRun):
+        print(run)
         return ToxRun(
             application=run.dependent_result.url,
             provider=run.injected,
