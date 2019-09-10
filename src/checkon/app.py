@@ -184,8 +184,12 @@ def run_one(project_url, inject: str):
             },
         )
 
-    result = results.DependentResult.from_dir(output_dir=results_dir, url=project_url)
-    return result
+    return results.AppSuiteRun(
+        injected=inject,
+        dependent_result=results.DependentResult.from_dir(
+            output_dir=results_dir, url=project_url
+        ),
+    )
 
 
 def run_many(project_urls: t.List[str], inject: str) -> t.List[results.DependentResult]:
