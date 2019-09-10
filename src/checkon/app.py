@@ -218,7 +218,7 @@ def extract_failed_tests(
 def compare(project_urls: t.List[str], inject_new: str, inject_base: str):
     [base_result] = run_many(project_urls, inject_base)
     [new_result] = run_many(project_urls, inject_new)
-
+    print(base_result)
     base_failures = extract_failed_tests(base_result)
     new_failures = extract_failed_tests(new_result)
 

@@ -1,7 +1,13 @@
+import functools
+import typing as t
+
+import attr
 import inflection
 import sqlalchemy as sa
 import sqlalchemy.ext.declarative
 import sqlalchemy.orm
+
+import checkon.results
 
 
 Base = sqlalchemy.ext.declarative.declarative_base()
@@ -82,7 +88,7 @@ class TestSuite:
 
 @relation
 class TestSuiteRun:
-    test_suite = sa.orm.relationship("TestSuite", uselist=False)
+    test_case_runs = sa.orm.relationship("TestCaseRun", uselist=True)
     start_time = sa.Column(sa.DateTime)
     duration = sa.Column(sa.String)
 
@@ -122,13 +128,64 @@ class ProviderApplicationToxenvRun:
     toxenv_run = sa.orm.relationship("ToxenvRun", uselist=False)
 
 
+@attr.dataclass
+class Database:
+    engine: t.Any
+    session: t.Any
+
+    @classmethod
+    def from_string(cls, connection_string="sqlite:///:memory:", echo=False):
+        engine = sa.create_engine(connection_string, echo=echo)
+        session = sa.orm.sessionmaker(bind=engine)()
+        return cls(engine, session)
+
+
+@functools.singledispatch
+def transform(result: object):
+    raise NotImplementedError(result, type(result).__name__, vars(result))
+
+
+@transform.register
+def _(result: checkon.results.DependentResult):
+    return [transform(tox_suite_run) for tox_suite_run in result.suite_runs]
+
+
+@transform.register
+def _(run: checkon.results.ToxSuiteRun):
+    return ToxenvRun(test_suite_run=transform(run.suite))
+
+
+@transform.register
+def _(run: checkon.results.TestSuiteRun):
+    suite = TestSuite(
+        test_cases=[transform(case, cls=TestCase) for case in run.test_cases]
+    )
+    test_case_runs = [transform(case, cls=TestCaseRun) for case in run.test_cases]
+    return TestSuiteRun(
+        test_case_runs=test_case_runs, duration=run.time, start_time=run.timestamp
+    )
+
+
+@transform.register
+def _(run: checkon.results.TestCaseRun, cls: t.Type):
+    if cls == TestCaseRun:
+        return TestCaseRun(duration=run.time, test_case=transform(run, cls=TestCase))
+    return TestCase(
+        name=run.name, classname=run.classname, file=run.file, line=run.line
+    )
+
+
+def insert_result(db: Database, result: checkon.results.DependentResult):
+    [out] = transform(result)
+
+    db.session.add(out)
+    db.session.commit()
+
+
 if __name__ == "__main__":
-    engine = sa.create_engine("sqlite:///:memory:", echo=True)
-    Base.metadata.bind = engine
+    from . import tmp
+
+    db = Database.from_string(echo=True)
+    Base.metadata.bind = db.engine
     Base.metadata.create_all()
-    session = sa.orm.sessionmaker(bind=engine)()
-
-    tf = TestFailure(failure_output=FailureOutput(message="msg", text="txt"))
-
-    session.add(tf)
-    session.commit()
+    insert_result(db, tmp.res)
