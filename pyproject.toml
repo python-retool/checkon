@@ -42,6 +42,9 @@ pre-commit = "^1.18"
 black = {version = "^18.3-alpha.0", allows-prereleases = true}
 pytest-clarity = {version = "^0.1.0-alpha.1", allows-prereleases = true}
 pygments = {version = "^2.4", allows-prereleases = true}
+pudb = "^2019.1"
+ipython = "^7.8"
+pp-ez = "^0.2.0"
 
 [tool.poetry.extras]
 docs = [
