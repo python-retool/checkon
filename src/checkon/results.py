@@ -59,9 +59,10 @@ class TestSuiteRun:
     test_cases: t.List[TestCaseRun] = dataclasses.field(
         metadata={"data_key": "testcase"}
     )
+    testenv: t.Optional[str]
 
     @classmethod
-    def from_bytes(cls, data):
+    def from_bytes(cls, data, testenv):
         schema = marshmallow_dataclass.class_schema(cls)(many=True)
         parsed = xmltodict.parse(
             data,
@@ -72,11 +73,13 @@ class TestSuiteRun:
         )
 
         [suite] = parsed["testsuites"]
-        return schema.load(suite["testsuite"])
+
+        return schema.load([{**ts, "testenv": testenv} for ts in suite["testsuite"]])
 
     @classmethod
     def from_path(cls, path):
-        return cls.from_bytes(pathlib.Path(path).read_bytes())
+        testenv = path.parent.name
+        return cls.from_bytes(pathlib.Path(path).read_bytes(), testenv=testenv)
 
 
 @attr.dataclass(frozen=True)

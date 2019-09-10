@@ -3,6 +3,7 @@ import typing as t
 
 import attr
 import inflection
+import pyrsistent
 import sqlalchemy as sa
 import sqlalchemy.ext.declarative
 import sqlalchemy.orm
@@ -100,6 +101,9 @@ class TestSuiteRun:
     start_time = sa.Column(sa.DateTime)
     duration = sa.Column(sa.String)
 
+    # XXX Ew.
+    testenv = sa.Column(sa.String)
+
 
 @relation
 class Application:
@@ -136,10 +140,23 @@ class ProviderApplicationToxenvRun:
     toxenv_run = sa.orm.relationship("ToxenvRun", uselist=False)
 
 
+def singledispatch_method(func):
+    """Singledispatch on second argument, i.e. the one that isn't `self`."""
+    dispatcher = functools.singledispatch(func)
+
+    def wrapper(*args, **kw):
+        return dispatcher.dispatch(args[1].__class__)(*args, **kw)
+
+    wrapper.register = dispatcher.register
+    functools.update_wrapper(wrapper, func)
+    return wrapper
+
+
 @attr.dataclass
 class Database:
     engine: t.Any
     session: t.Any
+    _cache: t.Dict = attr.ib(factory=dict)
 
     @classmethod
     def from_string(cls, connection_string="sqlite:///:memory:", echo=False):
@@ -151,59 +168,69 @@ class Database:
         Base.metadata.bind = self.engine
         Base.metadata.create_all()
 
+    @singledispatch_method
+    def transform(self, result: object):
+        raise NotImplementedError(result, type(result).__name__, vars(result))
 
-@functools.singledispatch
-def transform(result: object):
-    raise NotImplementedError(result, type(result).__name__, vars(result))
+    @transform.register
+    def _(self, result: checkon.results.DependentResult):
+        return [self.transform(tox_suite_run) for tox_suite_run in result.suite_runs]
 
+    @transform.register
+    def _(self, run: checkon.results.ToxSuiteRun):
 
-@transform.register
-def _(result: checkon.results.DependentResult):
-    return [transform(tox_suite_run) for tox_suite_run in result.suite_runs]
+        return ToxenvRun(test_suite_run=self.transform(run.suite))
 
-
-@transform.register
-def _(run: checkon.results.ToxSuiteRun):
-    return ToxenvRun(test_suite_run=transform(run.suite))
-
-
-@transform.register
-def _(run: checkon.results.TestSuiteRun):
-    suite = TestSuite(
-        test_cases=[transform(case, cls=TestCase) for case in run.test_cases]
-    )
-    test_case_runs = [transform(case, cls=TestCaseRun) for case in run.test_cases]
-    return TestSuiteRun(
-        test_case_runs=test_case_runs, duration=run.time, start_time=run.timestamp
-    )
-
-
-@transform.register
-def _(run: checkon.results.TestCaseRun, cls: t.Type):
-
-    if cls == TestCaseRun:
-
-        if run.failure is None:
-            failure = None
-        else:
-            failure = TestFailure(
-                failure_output=FailureOutput(
-                    message=run.failure.message, text="".join(run.failure.lines)
-                )
-            )
-        return TestCaseRun(
+    @transform.register
+    def _(self, run: checkon.results.TestSuiteRun):
+        suite = TestSuite(
+            test_cases=[
+                self.transform(case, cls=TestCase, testenv=run.testenv)
+                for case in run.test_cases
+            ]
+        )
+        test_case_runs = [
+            self.transform(case, cls=TestCaseRun, testenv=run.testenv)
+            for case in run.test_cases
+        ]
+        return TestSuiteRun(
+            test_case_runs=test_case_runs,
             duration=run.time,
-            test_case=transform(run, cls=TestCase),
-            test_failure=failure,
+            start_time=run.timestamp,
+            testenv=run.testenv,
         )
 
-    return TestCase(
-        name=run.name, classname=run.classname, file=run.file, line=run.line
-    )
+    @transform.register
+    def _(self, run: checkon.results.TestCaseRun, cls: t.Type, testenv):
+
+        if cls == TestCaseRun:
+
+            if run.failure is None:
+                failure = None
+            else:
+                failure = TestFailure(
+                    failure_output=FailureOutput(
+                        message=run.failure.message, text="".join(run.failure.lines)
+                    )
+                )
+            return TestCaseRun(
+                duration=run.time,
+                test_case=self.transform(run, cls=TestCase, testenv=testenv),
+                test_failure=failure,
+            )
+
+        # Deduplicate using a cache.
+        args = pyrsistent.pmap(
+            dict(name=run.name, classname=run.classname, file=run.file, line=run.line)
+        )
+        key = (TestCase, args, testenv)
+        if key in self._cache:
+            return self._cache[key]
+        return TestCase(**args)
 
 
 def insert_result(db: Database, result: checkon.results.DependentResult):
-    [out] = transform(result)
+    [out] = db.transform(result)
 
     db.session.add(out)
     db.session.commit()
