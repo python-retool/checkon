@@ -59,10 +59,10 @@ class TestSuiteRun:
     test_cases: t.List[TestCaseRun] = dataclasses.field(
         metadata={"data_key": "testcase"}
     )
-    testenv: t.Optional[str]
+    envname: t.Optional[str]
 
     @classmethod
-    def from_bytes(cls, data, testenv):
+    def from_bytes(cls, data, envname):
         schema = marshmallow_dataclass.class_schema(cls)(many=True)
         parsed = xmltodict.parse(
             data,
@@ -74,34 +74,36 @@ class TestSuiteRun:
 
         [suite] = parsed["testsuites"]
 
-        return schema.load([{**ts, "testenv": testenv} for ts in suite["testsuite"]])
+        return schema.load([{**ts, "envname": envname} for ts in suite["testsuite"]])
 
     @classmethod
     def from_path(cls, path):
-        testenv = path.parent.name
-        return cls.from_bytes(pathlib.Path(path).read_bytes(), testenv=testenv)
+        envname = path.parent.name
+        return cls.from_bytes(pathlib.Path(path).read_bytes(), envname=envname)
 
 
 @attr.dataclass(frozen=True)
-class ToxSuiteRun:
+class ToxTestSuiteRun:
     """A toxenv result."""
 
     suite: TestSuiteRun
     tox_run: checkon.tox.ToxRun
+    envname: str
 
     @classmethod
     def from_dir(cls, toxenv_dir):
         [path] = toxenv_dir.glob("test_*.xml")
         [suite] = TestSuiteRun.from_path(path)
+
         [tox_data_path] = toxenv_dir.glob("tox_*.json")
         tox_run = checkon.tox.ToxRun.from_path(tox_data_path)
-        return cls(suite, tox_run=tox_run)
+        return cls(suite, tox_run=tox_run, envname=toxenv_dir.name)
 
 
 @attr.dataclass(frozen=True)
 class DependentResult:
     url: str
-    suite_runs: t.List[ToxSuiteRun]
+    suite_runs: t.List[ToxTestSuiteRun]
 
     @classmethod
     def from_dir(cls, output_dir, url):
@@ -109,7 +111,7 @@ class DependentResult:
         for dir in pathlib.Path(output_dir).glob("*"):
             if not dir.is_dir():
                 continue
-            runs.append(ToxSuiteRun.from_dir(dir))
+            runs.append(ToxTestSuiteRun.from_dir(dir))
 
         return cls(url=url, suite_runs=runs)
 
