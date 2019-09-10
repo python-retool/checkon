@@ -18,6 +18,7 @@ import requests
 import requirements
 
 from . import results
+from . import satests
 
 
 @attr.dataclass(frozen=True)
@@ -182,21 +183,18 @@ def run_one(project_url, inject: str):
                 **os.environ,
             },
         )
-    return results_dir
+
+    result = results.DependentResult.from_dir(output_dir=results_dir, url=project_url)
+    return result
 
 
 def run_many(project_urls: t.List[str], inject: str) -> t.List[results.DependentResult]:
     inject = resolve_inject(inject)
-    url_to_output_dir = {}
+    url_to_res = {}
     for url in project_urls:
-        output_dir = run_one(project_url=url, inject=inject)
-        url_to_output_dir[url] = output_dir
+        url_to_res[url] = run_one(project_url=url, inject=inject)
 
-    out = []
-    for url, output_dir in url_to_output_dir.items():
-        out.append(results.DependentResult.from_dir(output_dir=output_dir, url=url))
-
-    return out
+    return url_to_res
 
 
 def extract_failed_tests(
@@ -216,15 +214,10 @@ def extract_failed_tests(
 
 
 def compare(project_urls: t.List[str], inject_new: str, inject_base: str):
-    [base_result] = run_many(project_urls, inject_base)
-    [new_result] = run_many(project_urls, inject_new)
-    print(base_result)
-    base_failures = extract_failed_tests(base_result)
-    new_failures = extract_failed_tests(new_result)
-
-    return results.Comparison(
-        base_requirement=inject_base,
-        new_requirement=inject_new,
-        base_failures=base_failures,
-        new_failures=new_failures,
-    )
+    base_result = run_many(project_urls, inject_base)
+    new_result = run_many(project_urls, inject_new)
+    print(new_result)
+    db = satests.Database.from_string("sqlite:////tmp/my.db", echo=True)
+    db.init()
+    for url, result in new_result.items():
+        satests.insert_result(db, result)

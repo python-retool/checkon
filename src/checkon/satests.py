@@ -68,6 +68,8 @@ class TestCaseRun:
     duration = sa.Column(sa.String)
     test_case = sa.orm.relationship("TestCase", uselist=False)
 
+    test_failure = sa.orm.relationship("TestFailure", uselist=False)
+
 
 @relation
 class FailureOutput:
@@ -79,6 +81,12 @@ class FailureOutput:
 @relation
 class TestFailure:
     failure_output = sa.orm.relationship("FailureOutput", uselist=False)
+    # test_case_run = sa.orm.relationship(
+    #     "TestCaseRun",
+    #     uselist=False,
+    #     back_populates="test_failure",
+    #     foreign_keys="TestCaseRun.test_failure_id",
+    # )
 
 
 @relation
@@ -139,6 +147,10 @@ class Database:
         session = sa.orm.sessionmaker(bind=engine)()
         return cls(engine, session)
 
+    def init(self):
+        Base.metadata.bind = self.engine
+        Base.metadata.create_all()
+
 
 @functools.singledispatch
 def transform(result: object):
@@ -168,8 +180,23 @@ def _(run: checkon.results.TestSuiteRun):
 
 @transform.register
 def _(run: checkon.results.TestCaseRun, cls: t.Type):
+
     if cls == TestCaseRun:
-        return TestCaseRun(duration=run.time, test_case=transform(run, cls=TestCase))
+
+        if run.failure is None:
+            failure = None
+        else:
+            failure = TestFailure(
+                failure_output=FailureOutput(
+                    message=run.failure.message, text="".join(run.failure.lines)
+                )
+            )
+        return TestCaseRun(
+            duration=run.time,
+            test_case=transform(run, cls=TestCase),
+            test_failure=failure,
+        )
+
     return TestCase(
         name=run.name, classname=run.classname, file=run.file, line=run.line
     )
@@ -183,9 +210,9 @@ def insert_result(db: Database, result: checkon.results.DependentResult):
 
 
 if __name__ == "__main__":
-    from . import tmp
+    from . import tmp2
 
     db = Database.from_string(echo=True)
     Base.metadata.bind = db.engine
     Base.metadata.create_all()
-    insert_result(db, tmp.res)
+    insert_result(db, tmp2.res["../lib2"])
