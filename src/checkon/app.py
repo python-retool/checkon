@@ -180,6 +180,7 @@ def run_one(project_url, inject: str):
             env={
                 "TOX_TESTENV_PASSENV": "PYTEST_ADDOPTS",
                 "PYTEST_ADDOPTS": f"--tb=long --junitxml={test_output_file}",
+                "JUNITXML_PATH": test_output_file,
                 **os.environ,
             },
         )
