@@ -264,6 +264,10 @@ def insert_result(db: Database, result: checkon.results.DependentResult):
     db.session.commit()
 
 
+def compare(db):
+    db.session.query().group_by(TestCase)
+
+
 if __name__ == "__main__":
     from . import tmp2
 

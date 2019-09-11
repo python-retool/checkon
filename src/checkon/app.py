@@ -221,7 +221,7 @@ def compare(project_urls: t.List[str], inject_new: str, inject_base: str):
     base_result = run_many(project_urls, inject_base)
     new_result = run_many(project_urls, inject_new)
 
-    db = satests.Database.from_string("sqlite:///sa.db", echo=True)
+    db = satests.Database.from_string("sqlite:////tmp/mydb", echo=True)
     db.init()
 
     for url, result in base_result.items():
@@ -229,3 +229,14 @@ def compare(project_urls: t.List[str], inject_new: str, inject_base: str):
 
     for url, result in new_result.items():
         satests.insert_result(db, result)
+
+
+"""
+        SELECT *
+        FROM test_case_run tcr
+        LEFT JOIN test_failure tf ON tcr.test_failure_id = tf.test_failure_id
+        LEFT JOIN test_suite_run tsr ON tsr.test_suite_run_id = tcr.test_suite_run_id
+        LEFT JOIN toxenv_run ter ON ter.test_suite_run_id = tsr.test_suite_run_id
+        LEFT JOIN tox_run tr ON tr.tox_run_id = ter.tox_run_id
+
+"""
