@@ -221,7 +221,11 @@ def compare(project_urls: t.List[str], inject_new: str, inject_base: str):
     base_result = run_many(project_urls, inject_base)
     new_result = run_many(project_urls, inject_new)
 
-    db = satests.Database.from_string("sqlite:///:memory:", echo=True)
+    db = satests.Database.from_string("sqlite:///sa.db", echo=True)
     db.init()
+
+    for url, result in base_result.items():
+        satests.insert_result(db, result)
+
     for url, result in new_result.items():
         satests.insert_result(db, result)
