@@ -132,16 +132,29 @@ def run_one(project_url, inject: str):
             check=False,
         )
 
-    # Install the injection into each venv
-    args = [
-        sys.executable,
-        "-m",
-        "tox",
-        "--run-command",
-        "python -m pip install --force " + shlex.quote(str(inject)),
-    ]
+    # Install the `trial` patch.
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "tox",
+            "--run-command",
+            "python -m pip install checkon-trial",
+        ],
+        cwd=str(project_tempdir),
+    )
 
-    subprocess.run(args, cwd=str(project_tempdir))
+    # Install the injection into each venv
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "tox",
+            "--run-command",
+            "python -m pip install --force " + shlex.quote(str(inject)),
+        ],
+        cwd=str(project_tempdir),
+    )
 
     # Get environment names.
     envnames = (
