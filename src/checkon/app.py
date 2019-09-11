@@ -133,6 +133,7 @@ def run_one(project_url, inject: str):
         )
 
     # Install the `trial` patch.
+    # TODO Put the original `trial` back afterwards.
     subprocess.run(
         [
             sys.executable,
