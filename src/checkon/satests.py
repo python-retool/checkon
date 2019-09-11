@@ -71,6 +71,12 @@ class TestCaseRun:
 
     test_failure = sa.orm.relationship("TestFailure", uselist=False)
 
+    test_suite_run_id = sa.Column(
+        sa.Integer, sa.ForeignKey("test_suite_run.test_suite_run_id")
+    )
+
+    test_suite_run = sa.orm.relationship("TestSuiteRun")
+
 
 @relation
 class FailureOutput:
@@ -95,9 +101,15 @@ class TestSuite:
     test_cases = sa.orm.relationship("TestCase", uselist=True)
 
 
-@relation
-class TestSuiteRun:
-    test_case_runs = sa.orm.relationship("TestCaseRun", uselist=True)
+# @relation
+class TestSuiteRun(Base):
+    __tablename__ = "test_suite_run"
+
+    test_suite_run_id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+
+    test_case_runs = sa.orm.relationship(
+        "TestCaseRun", uselist=True, back_populates="test_suite_run"
+    )
     start_time = sa.Column(sa.DateTime)
     duration = sa.Column(sa.String)
 
