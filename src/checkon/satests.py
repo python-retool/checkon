@@ -116,19 +116,24 @@ class Toxenv:
     application = sa.orm.relationship("Application", uselist=False)
 
 
+# @relation
+class ToxRun(Base):
+    __tablename__ = "tox_run"
+    tox_run_id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+
+    toxenv_runs = sa.orm.relationship("ToxenvRun", back_populates="tox_run")
+    provider = sa.Column(sa.String)
+    application = sa.Column(sa.String)
+
+
 @relation
 class ToxenvRun:
     toxenv = sa.orm.relationship("Toxenv")
     start_time = sa.Column(sa.DateTime)
     envname = sa.Column(sa.String)
     test_suite_run = sa.orm.relationship("TestSuiteRun", uselist=False)
-
-
-@relation
-class ToxRun:
-    toxenv_runs = sa.orm.relationship("ToxenvRun", uselist=True)
-    provider = sa.Column(sa.String)
-    application = sa.Column(sa.String)
+    tox_run = sa.orm.relationship("ToxRun", back_populates="toxenv_runs")
+    tox_run_id = sa.Column(sa.Integer, sa.ForeignKey("tox_run.tox_run_id"))
 
 
 @relation
@@ -173,9 +178,13 @@ class Database:
         return [self.transform(tox_suite_run) for tox_suite_run in result.suite_runs]
 
     @transform.register
-    def _x(self, run: checkon.results.ToxTestSuiteRun):
+    def _x(self, run: checkon.results.ToxTestSuiteRun, tox_run):
 
-        return ToxenvRun(test_suite_run=self.transform(run.suite), envname=run.envname)
+        return ToxenvRun(
+            test_suite_run=self.transform(run.suite),
+            envname=run.envname,
+            tox_run=tox_run,
+        )
 
     @transform.register
     def _z(self, run: checkon.results.TestSuiteRun):
@@ -227,14 +236,12 @@ class Database:
     @transform.register
     def _(self, run: checkon.results.AppSuiteRun):
         print(run)
-        return ToxRun(
-            application=run.dependent_result.url,
-            provider=run.injected,
-            toxenv_runs=[
-                self.transform(depresult)
-                for depresult in run.dependent_result.suite_runs
-            ],
-        )
+        tox_run = ToxRun(application=run.dependent_result.url, provider=run.injected)
+        toxenv_runs = [
+            self.transform(depresult, tox_run=tox_run)
+            for depresult in run.dependent_result.suite_runs
+        ]
+        return tox_run
 
 
 def insert_result(db: Database, result: checkon.results.DependentResult):
