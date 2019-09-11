@@ -145,6 +145,8 @@ def run_one(project_url, inject: str):
         cwd=str(project_tempdir),
     )
 
+    # TODO Install the `unittest` patch by adding a pth or PYTHONPATH replacing `unittest` on sys.path.
+
     # Install the injection into each venv
     subprocess.run(
         [
