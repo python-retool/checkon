@@ -1,6 +1,7 @@
 import pathlib
 
 import click
+import tabulate
 
 import checkon.results
 
@@ -15,9 +16,9 @@ def run_cli(urls_lists, **kw):
 
 def compare_cli(urls_lists, **kw):
     urls = [url for urls in urls_lists for url in urls]
-    print(
-        checkon.results.format_comparison(checkon.app.compare(project_urls=urls, **kw))
-    )
+    records = checkon.app.compare(project_urls=urls, **kw)
+    # import pudb; pudb.set_trace()
+    print(tabulate.tabulate(records, headers="keys"))
 
 
 def read_from_file(file):

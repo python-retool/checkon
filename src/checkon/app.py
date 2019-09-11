@@ -221,7 +221,7 @@ def compare(project_urls: t.List[str], inject_new: str, inject_base: str):
     base_result = run_many(project_urls, inject_base)
     new_result = run_many(project_urls, inject_new)
 
-    db = satests.Database.from_string("sqlite:////tmp/mydb", echo=True)
+    db = satests.Database.from_string("sqlite:///:memory:", echo=True)
     db.init()
 
     for url, result in base_result.items():
@@ -230,13 +230,26 @@ def compare(project_urls: t.List[str], inject_new: str, inject_base: str):
     for url, result in new_result.items():
         satests.insert_result(db, result)
 
+    return [dict(zip(d.keys(), d.values())) for d in (db.engine.execute(query))]
 
-"""
-        SELECT *
-        FROM test_case_run tcr
-        LEFT JOIN test_failure tf ON tcr.test_failure_id = tf.test_failure_id
-        LEFT JOIN test_suite_run tsr ON tsr.test_suite_run_id = tcr.test_suite_run_id
-        LEFT JOIN toxenv_run ter ON ter.test_suite_run_id = tsr.test_suite_run_id
-        LEFT JOIN tox_run tr ON tr.tox_run_id = ter.tox_run_id
+
+query = """
+SELECT
+    ter.envname,
+    tr.application,
+    tc.classname,
+    tc.name,
+    tc.line,
+    tr.provider,
+    fo.message,
+    fo.text
+
+FROM test_case_run tcr
+LEFT JOIN test_failure tf ON tcr.test_failure_id = tf.test_failure_id
+LEFT JOIN test_suite_run tsr ON tsr.test_suite_run_id = tcr.test_suite_run_id
+LEFT JOIN toxenv_run ter ON ter.test_suite_run_id = tsr.test_suite_run_id
+LEFT JOIN tox_run tr ON tr.tox_run_id = ter.tox_run_id
+LEFT JOIN failure_output fo ON tf.failure_output_id = fo.failure_output_id
+LEFT JOIN test_case tc ON tcr.test_case_id = tc.test_case_id
 
 """
