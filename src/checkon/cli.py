@@ -14,10 +14,11 @@ def run_cli(urls_lists, **kw):
     print(app.run_many(project_urls=urls, **kw))
 
 
-def compare_cli(urls_lists, **kw):
+def compare_cli(urls_lists, hide_passed, **kw):
     urls = [url for urls in urls_lists for url in urls]
     records = checkon.app.compare(project_urls=urls, **kw)
-    # import pudb; pudb.set_trace()
+    if hide_passed:
+        records = [r for r in records if r["text"] is not None]
     print(tabulate.tabulate(records, headers="keys"))
 
 
@@ -61,7 +62,7 @@ dependents = [
 test = click.Group(
     "test",
     commands={c.name: c for c in dependents},
-    params=[click.Option(["--inject"])],
+    params=[click.Option(["--inject"]), click.Option(["--hide-passed"], is_flag=True)],
     result_callback=run_cli,
     chain=True,
 )
@@ -70,7 +71,11 @@ test = click.Group(
 compare = click.Group(
     "compare",
     commands={c.name: c for c in dependents},
-    params=[click.Option(["--inject-new"]), click.Option(["--inject-base"])],
+    params=[
+        click.Option(["--inject-new"]),
+        click.Option(["--inject-base"]),
+        click.Option(["--hide-passed"], is_flag=True),
+    ],
     result_callback=compare_cli,
     chain=True,
 )
