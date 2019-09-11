@@ -251,5 +251,5 @@ LEFT JOIN toxenv_run ter ON ter.test_suite_run_id = tsr.test_suite_run_id
 LEFT JOIN tox_run tr ON tr.tox_run_id = ter.tox_run_id
 LEFT JOIN failure_output fo ON tf.failure_output_id = fo.failure_output_id
 LEFT JOIN test_case tc ON tcr.test_case_id = tc.test_case_id
-
+ORDER BY ter.envname, tr.application, tc.classname, tc.line, tc.name, tr.provider
 """
